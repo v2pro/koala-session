@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"runtime/debug"
 )
 
 type SessionDecoder struct {
@@ -39,12 +40,25 @@ func (decoder *SessionDecoder) SkipSession() {
 		decoder.Skip_ReturnInbound_Response()
 		decoder.SkipRemainingFields()
 	}
+	actionsCount := decoder.Decode_Session_Actions()
+	for i := uint32(0); i < actionsCount; i++ {
+		if decoder.Decode_Action_ReturnInbound() {
+			if decoder.Decode_ReturnInbound_BaseAction() {
+				decoder.Skip_BaseAction_ActionIndex()
+				decoder.Skip_BaseAction_OccurredAt()
+				decoder.Skip_BaseAction_ActionType()
+				decoder.SkipRemainingFields()
+			}
+			decoder.Skip_ReturnInbound_Response()
+			decoder.SkipRemainingFields()
+		}
+	}
 }
 
 func (decoder *SessionDecoder) SkipRemainingFields() {
 	if decoder.Input[0] != 0 {
 		if decoder.Error == nil {
-			decoder.Error = errors.New("expect struct end: " + hex.EncodeToString(decoder.Input))
+			decoder.Error = errors.New("expect struct end: " + hex.EncodeToString(decoder.Input) + "\n" + string(debug.Stack()))
 		}
 		return
 	}
@@ -208,6 +222,21 @@ func (decoder *SessionDecoder) Skip_ReturnInbound_Response() {
 	}
 }
 
+func (decoder *SessionDecoder) Decode_Session_Actions() uint32 {
+	if decoder.Input[0] == 0x0f && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x04 {
+		return decoder.decodeListSize()
+	}
+	return 0
+}
+
+func (decoder *SessionDecoder) Decode_Action_ReturnInbound() bool {
+	if decoder.Input[0] == 0x0c && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+		decoder.Input = decoder.Input[3:]
+		return true
+	}
+	return false
+}
+
 func (decoder *SessionDecoder) decodeUInt64() uint64 {
 	val := binary.BigEndian.Uint64(decoder.Input[3:])
 	decoder.Input = decoder.Input[11:]
@@ -226,4 +255,10 @@ func (decoder *SessionDecoder) skipBinary() {
 	length := binary.BigEndian.Uint32(decoder.Input[3:])
 	end := 7 + length
 	decoder.Input = decoder.Input[end:]
+}
+
+func (decoder *SessionDecoder) decodeListSize() uint32 {
+	length := binary.BigEndian.Uint32(decoder.Input[4:])
+	decoder.Input = decoder.Input[8:]
+	return length
 }
