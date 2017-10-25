@@ -111,7 +111,7 @@ func Benchmark_fast_encoder(b *testing.B) {
 			ActionType:  session1.CallFromInbound.Base.ActionType,
 		},
 		Peer: net.TCPAddr{
-			IP:   net.ParseIP(session1.CallFromInbound.Peer.IP),
+			IP:   session1.CallFromInbound.Peer.IP,
 			Port: int(session1.CallFromInbound.Peer.Port),
 			Zone: session1.CallFromInbound.Peer.Zone,
 		},

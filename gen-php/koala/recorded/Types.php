@@ -881,6 +881,103 @@ class SendUDP {
 
 }
 
+class ReadStorage {
+  static $_TSPEC;
+
+  public $Base = null;
+  public $Content = null;
+
+  public function __construct($vals=null) {
+    if (!isset(self::$_TSPEC)) {
+      self::$_TSPEC = array(
+        1 => array(
+          'var' => 'Base',
+          'type' => TType::STRUCT,
+          'class' => '\koala\recorded\BaseAction',
+          ),
+        2 => array(
+          'var' => 'Content',
+          'type' => TType::STRING,
+          ),
+        );
+    }
+    if (is_array($vals)) {
+      if (isset($vals['Base'])) {
+        $this->Base = $vals['Base'];
+      }
+      if (isset($vals['Content'])) {
+        $this->Content = $vals['Content'];
+      }
+    }
+  }
+
+  public function getName() {
+    return 'ReadStorage';
+  }
+
+  public function read($input)
+  {
+    $xfer = 0;
+    $fname = null;
+    $ftype = 0;
+    $fid = 0;
+    $xfer += $input->readStructBegin($fname);
+    while (true)
+    {
+      $xfer += $input->readFieldBegin($fname, $ftype, $fid);
+      if ($ftype == TType::STOP) {
+        break;
+      }
+      switch ($fid)
+      {
+        case 1:
+          if ($ftype == TType::STRUCT) {
+            $this->Base = new \koala\recorded\BaseAction();
+            $xfer += $this->Base->read($input);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 2:
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->Content);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        default:
+          $xfer += $input->skip($ftype);
+          break;
+      }
+      $xfer += $input->readFieldEnd();
+    }
+    $xfer += $input->readStructEnd();
+    return $xfer;
+  }
+
+  public function write($output) {
+    $xfer = 0;
+    $xfer += $output->writeStructBegin('ReadStorage');
+    if ($this->Base !== null) {
+      if (!is_object($this->Base)) {
+        throw new TProtocolException('Bad type in structure.', TProtocolException::INVALID_DATA);
+      }
+      $xfer += $output->writeFieldBegin('Base', TType::STRUCT, 1);
+      $xfer += $this->Base->write($output);
+      $xfer += $output->writeFieldEnd();
+    }
+    if ($this->Content !== null) {
+      $xfer += $output->writeFieldBegin('Content', TType::STRING, 2);
+      $xfer += $output->writeString($this->Content);
+      $xfer += $output->writeFieldEnd();
+    }
+    $xfer += $output->writeFieldStop();
+    $xfer += $output->writeStructEnd();
+    return $xfer;
+  }
+
+}
+
 class Action {
   static $_TSPEC;
 
@@ -889,6 +986,7 @@ class Action {
   public $CallOutbound = null;
   public $AppendFile = null;
   public $SendUDP = null;
+  public $ReadStorage = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -918,6 +1016,11 @@ class Action {
           'type' => TType::STRUCT,
           'class' => '\koala\recorded\SendUDP',
           ),
+        6 => array(
+          'var' => 'ReadStorage',
+          'type' => TType::STRUCT,
+          'class' => '\koala\recorded\ReadStorage',
+          ),
         );
     }
     if (is_array($vals)) {
@@ -935,6 +1038,9 @@ class Action {
       }
       if (isset($vals['SendUDP'])) {
         $this->SendUDP = $vals['SendUDP'];
+      }
+      if (isset($vals['ReadStorage'])) {
+        $this->ReadStorage = $vals['ReadStorage'];
       }
     }
   }
@@ -998,6 +1104,14 @@ class Action {
             $xfer += $input->skip($ftype);
           }
           break;
+        case 6:
+          if ($ftype == TType::STRUCT) {
+            $this->ReadStorage = new \koala\recorded\ReadStorage();
+            $xfer += $this->ReadStorage->read($input);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
         default:
           $xfer += $input->skip($ftype);
           break;
@@ -1049,6 +1163,14 @@ class Action {
       }
       $xfer += $output->writeFieldBegin('SendUDP', TType::STRUCT, 5);
       $xfer += $this->SendUDP->write($output);
+      $xfer += $output->writeFieldEnd();
+    }
+    if ($this->ReadStorage !== null) {
+      if (!is_object($this->ReadStorage)) {
+        throw new TProtocolException('Bad type in structure.', TProtocolException::INVALID_DATA);
+      }
+      $xfer += $output->writeFieldBegin('ReadStorage', TType::STRUCT, 6);
+      $xfer += $this->ReadStorage->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();

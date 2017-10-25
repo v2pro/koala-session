@@ -8,7 +8,7 @@ struct BaseAction {
 }
 
 struct Peer {
-    1: string IP
+    1: binary IP
     2: i64 Port
     3: string Zone
 }
@@ -45,12 +45,18 @@ struct SendUDP {
     3: binary Content
 }
 
+struct ReadStorage {
+    1: BaseAction Base
+    2: binary Content
+}
+
 union Action {
     1: CallFromInbound CallFromInbound
     2: ReturnInbound ReturnInBound
     3: CallOutbound CallOutbound
     4: AppendFile AppendFile
     5: SendUDP SendUDP
+    6: ReadStorage ReadStorage
 }
 
 struct Session {

@@ -162,7 +162,7 @@ func (p *BaseAction) String() string {
 }
 
 type Peer struct {
-	IP   string `thrift:"IP,1"`
+	IP   []byte `thrift:"IP,1"`
 	Port int64  `thrift:"Port,2"`
 	Zone string `thrift:"Zone,3"`
 }
@@ -212,7 +212,7 @@ func (p *Peer) Read(iprot thrift.TProtocol) error {
 }
 
 func (p *Peer) readField1(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadString(); err != nil {
+	if v, err := iprot.ReadBinary(); err != nil {
 		return fmt.Errorf("error reading field 1: %s")
 	} else {
 		p.IP = v
@@ -261,14 +261,16 @@ func (p *Peer) Write(oprot thrift.TProtocol) error {
 }
 
 func (p *Peer) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("IP", thrift.STRING, 1); err != nil {
-		return fmt.Errorf("%T write field begin error 1:IP: %s", p, err)
-	}
-	if err := oprot.WriteString(string(p.IP)); err != nil {
-		return fmt.Errorf("%T.IP (1) field write error: %s", p)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return fmt.Errorf("%T write field end error 1:IP: %s", p, err)
+	if p.IP != nil {
+		if err := oprot.WriteFieldBegin("IP", thrift.BINARY, 1); err != nil {
+			return fmt.Errorf("%T write field begin error 1:IP: %s", p, err)
+		}
+		if err := oprot.WriteBinary(p.IP); err != nil {
+			return fmt.Errorf("%T.IP (1) field write error: %s", p)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return fmt.Errorf("%T write field end error 1:IP: %s", p, err)
+		}
 	}
 	return err
 }
@@ -1111,12 +1113,131 @@ func (p *SendUDP) String() string {
 	return fmt.Sprintf("SendUDP(%+v)", *p)
 }
 
+type ReadStorage struct {
+	Base    *BaseAction `thrift:"Base,1"`
+	Content []byte      `thrift:"Content,2"`
+}
+
+func NewReadStorage() *ReadStorage {
+	return &ReadStorage{}
+}
+
+func (p *ReadStorage) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return fmt.Errorf("%T read error", p)
+	}
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return fmt.Errorf("%T field %d read error: %s", p, fieldId, err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.readField1(iprot); err != nil {
+				return err
+			}
+		case 2:
+			if err := p.readField2(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return fmt.Errorf("%T read struct end error: %s", p, err)
+	}
+	return nil
+}
+
+func (p *ReadStorage) readField1(iprot thrift.TProtocol) error {
+	p.Base = NewBaseAction()
+	if err := p.Base.Read(iprot); err != nil {
+		return fmt.Errorf("%T error reading struct: %s", p.Base)
+	}
+	return nil
+}
+
+func (p *ReadStorage) readField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return fmt.Errorf("error reading field 2: %s")
+	} else {
+		p.Content = v
+	}
+	return nil
+}
+
+func (p *ReadStorage) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("ReadStorage"); err != nil {
+		return fmt.Errorf("%T write struct begin error: %s", p, err)
+	}
+	if err := p.writeField1(oprot); err != nil {
+		return err
+	}
+	if err := p.writeField2(oprot); err != nil {
+		return err
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return fmt.Errorf("%T write field stop error: %s", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return fmt.Errorf("%T write struct stop error: %s", err)
+	}
+	return nil
+}
+
+func (p *ReadStorage) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.Base != nil {
+		if err := oprot.WriteFieldBegin("Base", thrift.STRUCT, 1); err != nil {
+			return fmt.Errorf("%T write field begin error 1:Base: %s", p, err)
+		}
+		if err := p.Base.Write(oprot); err != nil {
+			return fmt.Errorf("%T error writing struct: %s", p.Base)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return fmt.Errorf("%T write field end error 1:Base: %s", p, err)
+		}
+	}
+	return err
+}
+
+func (p *ReadStorage) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.Content != nil {
+		if err := oprot.WriteFieldBegin("Content", thrift.BINARY, 2); err != nil {
+			return fmt.Errorf("%T write field begin error 2:Content: %s", p, err)
+		}
+		if err := oprot.WriteBinary(p.Content); err != nil {
+			return fmt.Errorf("%T.Content (2) field write error: %s", p)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return fmt.Errorf("%T write field end error 2:Content: %s", p, err)
+		}
+	}
+	return err
+}
+
+func (p *ReadStorage) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ReadStorage(%+v)", *p)
+}
+
 type Action struct {
 	CallFromInbound *CallFromInbound `thrift:"CallFromInbound,1"`
 	ReturnInBound   *ReturnInbound   `thrift:"ReturnInBound,2"`
 	CallOutbound    *CallOutbound    `thrift:"CallOutbound,3"`
 	AppendFile      *AppendFile      `thrift:"AppendFile,4"`
 	SendUDP         *SendUDP         `thrift:"SendUDP,5"`
+	ReadStorage     *ReadStorage     `thrift:"ReadStorage,6"`
 }
 
 func NewAction() *Action {
@@ -1154,6 +1275,10 @@ func (p *Action) Read(iprot thrift.TProtocol) error {
 			}
 		case 5:
 			if err := p.readField5(iprot); err != nil {
+				return err
+			}
+		case 6:
+			if err := p.readField6(iprot); err != nil {
 				return err
 			}
 		default:
@@ -1211,6 +1336,14 @@ func (p *Action) readField5(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Action) readField6(iprot thrift.TProtocol) error {
+	p.ReadStorage = NewReadStorage()
+	if err := p.ReadStorage.Read(iprot); err != nil {
+		return fmt.Errorf("%T error reading struct: %s", p.ReadStorage)
+	}
+	return nil
+}
+
 func (p *Action) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Action"); err != nil {
 		return fmt.Errorf("%T write struct begin error: %s", p, err)
@@ -1228,6 +1361,9 @@ func (p *Action) Write(oprot thrift.TProtocol) error {
 		return err
 	}
 	if err := p.writeField5(oprot); err != nil {
+		return err
+	}
+	if err := p.writeField6(oprot); err != nil {
 		return err
 	}
 	if err := oprot.WriteFieldStop(); err != nil {
@@ -1309,6 +1445,21 @@ func (p *Action) writeField5(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return fmt.Errorf("%T write field end error 5:SendUDP: %s", p, err)
+		}
+	}
+	return err
+}
+
+func (p *Action) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.ReadStorage != nil {
+		if err := oprot.WriteFieldBegin("ReadStorage", thrift.STRUCT, 6); err != nil {
+			return fmt.Errorf("%T write field begin error 6:ReadStorage: %s", p, err)
+		}
+		if err := p.ReadStorage.Write(oprot); err != nil {
+			return fmt.Errorf("%T error writing struct: %s", p.ReadStorage)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return fmt.Errorf("%T write field end error 6:ReadStorage: %s", p, err)
 		}
 	}
 	return err
