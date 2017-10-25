@@ -5,9 +5,10 @@ import (
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"bytes"
 	"encoding/hex"
+	"github.com/v2pro/koala/recording"
 )
 
-func Benchmark_original_decode(b *testing.B) {
+func Benchmark_original_decoder(b *testing.B) {
 	input, err := hex.DecodeString("0b00010000000a73657373696f6e2d69640c00020c00010a000100000000000000010a000200000000000000000b00030000000f43616c6c46726f6d496e626f756e64000c00020b0001000000093132372e302e302e310a000200000000000004d2000b00030000000568656c6c6f000c00030c00010a000100000000000000020a000200000000000000000b00030000000d52657475726e496e626f756e64000b000200000005776f726c64000f00040c000000010c00020c00010a000100000000000000020a000200000000000000000b00030000000d52657475726e496e626f756e64000b000200000005776f726c64000000")
 	if err != nil {
 		b.Error(err)
@@ -15,7 +16,7 @@ func Benchmark_original_decode(b *testing.B) {
 	}
 	buf := &memoryBuffer{}
 	proto := thrift.NewTBinaryProtocol(buf, true, true)
-	session := Session{}
+	session := &Session{}
 	for i := 0; i < b.N; i++ {
 		buf.Buffer = bytes.NewBuffer(input)
 		err := session.Read(proto)
@@ -26,7 +27,7 @@ func Benchmark_original_decode(b *testing.B) {
 	}
 }
 
-func Benchmark_manual_decode(b *testing.B) {
+func Benchmark_faster_decoder(b *testing.B) {
 	input, err := hex.DecodeString(
 		"0b00010000000a73657373696f6e2d6964" +
 			"0c0002" /* CallFromInbound */ +
@@ -51,7 +52,7 @@ func Benchmark_manual_decode(b *testing.B) {
 		b.Error(err)
 		return
 	}
-	decoder := SessionDecoder{}
+	decoder := &SessionDecoder{}
 	for i := 0; i < b.N; i++ {
 		decoder.Input = input
 		decoder.SkipSession()
@@ -59,6 +60,37 @@ func Benchmark_manual_decode(b *testing.B) {
 			b.Error(decoder.Error)
 			return
 		}
+	}
+}
+
+func Benchmark_fast_encoder(b *testing.B) {
+	input, err := hex.DecodeString("0b00010000000a73657373696f6e2d69640c00020c00010a000100000000000000010a000200000000000000000b00030000000f43616c6c46726f6d496e626f756e64000c00020b0001000000093132372e302e302e310a000200000000000004d2000b00030000000568656c6c6f000c00030c00010a000100000000000000020a000200000000000000000b00030000000d52657475726e496e626f756e64000b000200000005776f726c64000f00040c000000010c00020c00010a000100000000000000020a000200000000000000000b00030000000d52657475726e496e626f756e64000b000200000005776f726c64000000")
+	if err != nil {
+		b.Error(err)
+		return
+	}
+	buf := &memoryBuffer{}
+	proto := thrift.NewTBinaryProtocol(buf, true, true)
+	session1 := &Session{}
+	buf.Buffer = bytes.NewBuffer(input)
+	err = session1.Read(proto)
+	if err != nil {
+		b.Error(err)
+		return
+	}
+	session2 := &recording.Session{}
+	session2.SessionId = session1.SessionId
+	session2.CallFromInbound = &recording.CallFromInbound{
+		BaseAction: recording.BaseAction{
+			ActionIndex: int(session1.CallFromInbound.Base.ActionIndex),
+		},
+	}
+	encoder := &SessionEncoder{}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		encoder.Output = encoder.Output[:]
+		encoder.Encode(session2)
 	}
 }
 
