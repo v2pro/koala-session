@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"runtime/debug"
+	"strconv"
 )
 
 type SessionDecoder struct {
@@ -15,44 +16,63 @@ type SessionDecoder struct {
 func (decoder *SessionDecoder) SkipSession() {
 	decoder.Skip_Session_SessionId()
 	if decoder.Decode_Session_CallFromInbound() {
-		if decoder.Decode_CallFromInbound_BaseAction() {
-			decoder.Skip_BaseAction_ActionIndex()
-			decoder.Skip_BaseAction_OccurredAt()
-			decoder.Skip_BaseAction_ActionType()
-			decoder.SkipRemainingFields()
-		}
-		if decoder.Decode_CallFromInbound_Peer() {
-			decoder.Skip_Peer_IP()
-			decoder.Skip_Peer_Port()
-			decoder.Skip_Peer_Zone()
-			decoder.SkipRemainingFields()
-		}
-		decoder.Skip_CallFromInbound_Request()
-		decoder.SkipRemainingFields()
+		decoder.skipCallFromInbound()
 	}
 	if decoder.Decode_Session_ReturnInbound() {
-		if decoder.Decode_ReturnInbound_BaseAction() {
-			decoder.Skip_BaseAction_ActionIndex()
-			decoder.Skip_BaseAction_OccurredAt()
-			decoder.Skip_BaseAction_ActionType()
-			decoder.SkipRemainingFields()
-		}
-		decoder.Skip_ReturnInbound_Response()
-		decoder.SkipRemainingFields()
+		decoder.skipReturnInbound()
 	}
 	actionsCount := decoder.Decode_Session_Actions()
 	for i := uint32(0); i < actionsCount; i++ {
-		if decoder.Decode_Action_ReturnInbound() {
-			if decoder.Decode_ReturnInbound_BaseAction() {
-				decoder.Skip_BaseAction_ActionIndex()
-				decoder.Skip_BaseAction_OccurredAt()
-				decoder.Skip_BaseAction_ActionType()
-				decoder.SkipRemainingFields()
+		fieldIndex := decoder.Decode_Action_FieldIndex()
+		switch fieldIndex {
+		case 0x01:
+			decoder.skipCallFromInbound()
+		case 0x02:
+			decoder.skipReturnInbound()
+		case 0x03:
+			decoder.skipCallOutbound()
+		default:
+			if decoder.Error != nil {
+				decoder.Error = errors.New("unknown action found: " + strconv.Itoa(int(fieldIndex)))
 			}
-			decoder.Skip_ReturnInbound_Response()
-			decoder.SkipRemainingFields()
 		}
 	}
+}
+
+func (decoder *SessionDecoder) skipCallOutbound() {
+	if decoder.Decode_CallOutbound_BaseAction() {
+		decoder.skipBaseAction()
+	}
+	decoder.Skip_CallOutbound_SocketFD()
+}
+
+func (decoder *SessionDecoder) skipReturnInbound() {
+	if decoder.Decode_ReturnInbound_BaseAction() {
+		decoder.skipBaseAction()
+	}
+	decoder.Skip_ReturnInbound_Response()
+	decoder.SkipRemainingFields()
+}
+
+func (decoder *SessionDecoder) skipCallFromInbound() {
+	if decoder.Decode_CallFromInbound_BaseAction() {
+		decoder.skipBaseAction()
+	}
+	if decoder.Decode_CallFromInbound_Peer() {
+		decoder.Skip_Peer_IP()
+		decoder.Skip_Peer_Port()
+		decoder.Skip_Peer_Zone()
+		decoder.SkipRemainingFields()
+	}
+	decoder.Skip_CallFromInbound_Request()
+	decoder.SkipRemainingFields()
+}
+
+func (decoder *SessionDecoder)skipBaseAction() {
+	decoder.Skip_BaseAction_ActionIndex()
+	decoder.Skip_BaseAction_OccurredAt()
+	decoder.Skip_BaseAction_ActionType()
+	decoder.SkipRemainingFields()
 }
 
 func (decoder *SessionDecoder) SkipRemainingFields() {
@@ -66,20 +86,20 @@ func (decoder *SessionDecoder) SkipRemainingFields() {
 }
 
 func (decoder *SessionDecoder) Decode_Session_SessionId() []byte {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		return decoder.decodeBinary()
 	}
 	return nil
 }
 
 func (decoder *SessionDecoder) Skip_Session_SessionId() {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		decoder.skipBinary()
 	}
 }
 
 func (decoder *SessionDecoder) Decode_Session_CallFromInbound() bool {
-	if decoder.Input[0] == 0x0c && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftStruct && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		decoder.Input = decoder.Input[3:]
 		return true
 	}
@@ -87,7 +107,7 @@ func (decoder *SessionDecoder) Decode_Session_CallFromInbound() bool {
 }
 
 func (decoder *SessionDecoder) Decode_CallFromInbound_BaseAction() bool {
-	if decoder.Input[0] == 0x0c && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftStruct && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		decoder.Input = decoder.Input[3:]
 		return true
 	}
@@ -95,46 +115,46 @@ func (decoder *SessionDecoder) Decode_CallFromInbound_BaseAction() bool {
 }
 
 func (decoder *SessionDecoder) Decode_BaseAction_ActionIndex() uint64 {
-	if decoder.Input[0] == 0x0a && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		return decoder.decodeUInt64()
 	}
 	return 0
 }
 
 func (decoder *SessionDecoder) Skip_BaseAction_ActionIndex() {
-	if decoder.Input[0] == 0x0a && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		decoder.Input = decoder.Input[11:]
 	}
 }
 
 func (decoder *SessionDecoder) Decode_BaseAction_OccurredAt() uint64 {
-	if decoder.Input[0] == 0x0a && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		return decoder.decodeUInt64()
 	}
 	return 0
 }
 
 func (decoder *SessionDecoder) Skip_BaseAction_OccurredAt() {
-	if decoder.Input[0] == 0x0a && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		decoder.Input = decoder.Input[11:]
 	}
 }
 
 func (decoder *SessionDecoder) Decode_BaseAction_ActionType() []byte {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
 		return decoder.decodeBinary()
 	}
 	return nil
 }
 
 func (decoder *SessionDecoder) Skip_BaseAction_ActionType() {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
 		decoder.skipBinary()
 	}
 }
 
 func (decoder *SessionDecoder) Decode_CallFromInbound_Peer() bool {
-	if decoder.Input[0] == 0x0c && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftStruct && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		decoder.Input = decoder.Input[3:]
 		return true
 	}
@@ -142,59 +162,59 @@ func (decoder *SessionDecoder) Decode_CallFromInbound_Peer() bool {
 }
 
 func (decoder *SessionDecoder) Decode_Peer_IP() []byte {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		return decoder.decodeBinary()
 	}
 	return nil
 }
 
 func (decoder *SessionDecoder) Skip_Peer_IP() {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		decoder.skipBinary()
 	}
 }
 
 func (decoder *SessionDecoder) Decode_Peer_Port() uint64 {
-	if decoder.Input[0] == 0x0a && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		return decoder.decodeUInt64()
 	}
 	return 0
 }
 
 func (decoder *SessionDecoder) Skip_Peer_Port() {
-	if decoder.Input[0] == 0x0a && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		decoder.Input = decoder.Input[11:]
 	}
 }
 
 func (decoder *SessionDecoder) Decode_Peer_Zone() []byte {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
 		return decoder.decodeBinary()
 	}
 	return nil
 }
 
 func (decoder *SessionDecoder) Skip_Peer_Zone() {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
 		decoder.skipBinary()
 	}
 }
 
 func (decoder *SessionDecoder) Decode_CallFromInbound_Request() []byte {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
 		return decoder.decodeBinary()
 	}
 	return nil
 }
 
 func (decoder *SessionDecoder) Skip_CallFromInbound_Request() {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
 		decoder.skipBinary()
 	}
 }
 
 func (decoder *SessionDecoder) Decode_Session_ReturnInbound() bool {
-	if decoder.Input[0] == 0x0c && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
+	if ThriftType(decoder.Input[0]) == ThriftStruct && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x03 {
 		decoder.Input = decoder.Input[3:]
 		return true
 	}
@@ -202,7 +222,7 @@ func (decoder *SessionDecoder) Decode_Session_ReturnInbound() bool {
 }
 
 func (decoder *SessionDecoder) Decode_ReturnInbound_BaseAction() bool {
-	if decoder.Input[0] == 0x0c && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
+	if ThriftType(decoder.Input[0]) == ThriftStruct && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		decoder.Input = decoder.Input[3:]
 		return true
 	}
@@ -210,14 +230,14 @@ func (decoder *SessionDecoder) Decode_ReturnInbound_BaseAction() bool {
 }
 
 func (decoder *SessionDecoder) Decode_ReturnInbound_Response() []byte {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		return decoder.decodeBinary()
 	}
 	return nil
 }
 
 func (decoder *SessionDecoder) Skip_ReturnInbound_Response() {
-	if decoder.Input[0] == 0x0b && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+	if ThriftType(decoder.Input[0]) == ThriftUTF7 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
 		decoder.skipBinary()
 	}
 }
@@ -229,13 +249,34 @@ func (decoder *SessionDecoder) Decode_Session_Actions() uint32 {
 	return 0
 }
 
-func (decoder *SessionDecoder) Decode_Action_ReturnInbound() bool {
-	if decoder.Input[0] == 0x0c && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+func (decoder *SessionDecoder) Decode_Action_FieldIndex() byte {
+	fieldIndex := decoder.Input[2]
+	decoder.Input = decoder.Input[3:]
+	return fieldIndex
+}
+
+func (decoder *SessionDecoder) Decode_CallOutbound_BaseAction() bool {
+	if ThriftType(decoder.Input[0]) == ThriftStruct && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x01 {
 		decoder.Input = decoder.Input[3:]
 		return true
 	}
 	return false
 }
+
+func (decoder *SessionDecoder) Skip_CallOutbound_SocketFD() {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+		decoder.Input = decoder.Input[11:]
+	}
+}
+
+func (decoder *SessionDecoder) Decode_CallOutbound_SocketFD() uint64 {
+	if ThriftType(decoder.Input[0]) == ThriftI64 && decoder.Input[1] == 0x00 && decoder.Input[2] == 0x02 {
+		decoder.Input = decoder.Input[3:]
+		return decoder.decodeUInt64()
+	}
+	return 0
+}
+
 
 func (decoder *SessionDecoder) decodeUInt64() uint64 {
 	val := binary.BigEndian.Uint64(decoder.Input[3:])
